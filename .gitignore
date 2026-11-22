@@ -1,0 +1,12 @@
+# Arquivos de sessão e histórico do R
+.Rhistory
+.RData
+.RDataTmp
+.Ruserdata
+
+# Pasta oculta de cache/configuração do RStudio
+.Rproj.user/
+
+# Arquivos de deploy/ambiente local do Shiny (se aplicável)
+rsconnect/
+.Renviron
