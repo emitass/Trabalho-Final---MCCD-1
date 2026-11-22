@@ -4,16 +4,9 @@ library(shinydashboard)
 library(tidyverse)
 library(DT)
 
-# pacotes para criar os gráficos e tabelas:
-# library(dplyr)
-# library(ggplot2)
-# library(plotly)
-# library(leaflet)
-# 
+#1.1 biblioteca para o mapa
+library(plotly)
 
-# 2. Tratamento dos Dados -------------------------------------------------------------------------------------------------------------------------------------------------------
-
-# leitura da base de dados
 caminho_dataset <- file.path("..", "Dataset", "save_the_bees.csv")
 dados_brutos <- read.csv(caminho_dataset)
 
@@ -97,7 +90,10 @@ dados_tabela <- dados_tratados %>%
     `Causa Desconhecida (%)` = unknown
   )
 
-#3. Interface do Usuário (UI) ---------------------------------------------------------------------------------------------------------------------------------------------------
+# Anos disponiveis para ser usado no filtro do mapa
+anos_disponiveis <- sort(unique(dados_tratados$year), decreasing = TRUE)
+
+
 ui <- dashboardPage(
   skin = "yellow", #cor de fundo do cabeçalho
   
@@ -108,7 +104,6 @@ ui <- dashboardPage(
   dashboardSidebar(
     br(),
     
-    # imagem (tinha pensado em colocar o brasão da ufmg ou algo do dest)
     div(
       align = "center",
       img(
@@ -124,13 +119,12 @@ ui <- dashboardPage(
     
     # menu de navegação
     sidebarMenu(
-      # os ícones são padrões do R e podem ser alterados, se quiserem
-      menuItem("1. Introdução", tabName = "aba1", icon = icon("info-circle")),
-      menuItem("2. Gráfico 1", tabName = "aba2", icon = icon("chart-bar")), # alterar os nomes depois
-      menuItem("3. Gráfico 2", tabName = "aba3", icon = icon("chart-line")),
-      menuItem("4. Mapa", tabName = "aba4", icon = icon("map-marker-alt")),
-      menuItem("5. Banco de Dados Tratado", tabName = "aba5", icon = icon("table")),
-      menuItem("6. Conclusões", tabName = "aba6", icon = icon("check-circle"))
+      menuItem("Introdução", tabName = "aba1", icon = icon("info-circle")),
+      menuItem("Gráfico 1", tabName = "aba2", icon = icon("chart-bar")), # alterar os nomes depois
+      menuItem("Gráfico 2", tabName = "aba3", icon = icon("chart-line")),
+      menuItem("Mapa", tabName = "aba4", icon = icon("map-marker-alt")),
+      menuItem("Banco de Dados Tratado", tabName = "aba5", icon = icon("table")),
+      menuItem("Conclusões", tabName = "aba6", icon = icon("check-circle"))
     ),
     
     hr(),
@@ -216,26 +210,26 @@ ui <- dashboardPage(
         )
       ),
       
-      # aba 4 - mapa (? dependendo do banco de dados que a gente pegar não dá pra fazer um mapa mapa, mas deve dar pra fazer outra coisa)
+      # ABA 4 MAPA
       tabItem(
         tabName = "aba4",
-        h2("Título 4"),
+        h2("Mapa do numero de colonias por estado"),
         fluidRow(
           box(
-            title = "Barra de Filtros",
-            width = 12,
+            width = 20,
             status = "info",
-            p("Inputs (selectInput, sliderInput, etc.) do mapa.")
-          )
-        ),
-        fluidRow(
-          box(
-            title = "Nome do Mapa",
-            width = 12,
-            status = "info",
-            p("Mapa.")
-          )
-        )
+            selectInput(
+              inputId = "ano_selecionado",
+              label = "Selecione o ano:",
+              choices = anos_disponiveis,
+              selected = anos_disponiveis[1],
+              width = 200
+            ),
+            mainPanel(
+              plotlyOutput("mapa_eua", width = "900px")
+            )
+            ),
+          ),
       ),
       
       # aba 5 - banco de dados (é bom pro usuário ter acesso direto a linhas específicas/número de observações filtradas)
@@ -272,10 +266,7 @@ ui <- dashboardPage(
   )
 )
 
-#4. Lógica do Sevidor (Sever) --------------------------------------------------------------------------------------------------------------------------------------------------
 server <- function(input, output) {
-  
-  #criação dos gráficos e tabelas (abas 2, 3, 4 e 5)
   
   #aba 5 - tabela com o banco dde dados tratado
   output$tabela_dados <- renderDT({
@@ -297,8 +288,70 @@ server <- function(input, output) {
       )
     )
   })
+  
+  # Grafico do mapa dos EUA
+  cores_mel <- list(
+    list(0.0, "#FFF7D6"),
+    list(0.35, "#F7C948"),
+    list(0.7, "#D9821B"),
+    list(1.0, "#6E3500")
+  )
+  
+  dados_mapa_ano <- reactive({
+    req(input$ano_selecionado)
+    
+    dados_tratados %>%
+      filter(
+        state != "Other",
+        year == as.numeric(input$ano_selecionado)
+      ) %>%
+      group_by(Estado = state, Sigla = state_code) %>%
+      summarise(
+        colonias_iniciais = sum(num_colonies, na.rm = TRUE),
+        .groups = "drop"
+      )
+  })
+  
+  output$mapa_eua <- renderPlotly({
+    dados_mapa <- dados_mapa_ano() %>%
+      mutate(
+        valor_cor = ifelse(colonias_iniciais > 0, log10(colonias_iniciais), NA_real_)
+      )
+    
+    plot_geo(locationmode = "USA-states") %>%
+      add_trace(
+        data = dados_mapa,
+        z = ~valor_cor,
+        locations = ~Sigla,
+        text = ~paste0(
+          Estado, " (", Sigla, ")",
+          "<br>Ano: ", input$ano_selecionado,
+          "<br>Colônias Iniciais: ", format(colonias_iniciais, big.mark = ".", decimal.mark = ",")
+        ),
+        hoverinfo = "text",
+        colorscale = cores_mel,
+        showscale = TRUE,
+        colorbar = list(
+          title = "Colônias<br>(escala log)",
+          # Mostra valores reais nos marcadores da barra de cores
+          tickvals = pretty(range(dados_mapa$valor_cor, na.rm = TRUE)),
+          ticktext = format(
+            round(10^pretty(range(dados_mapa$valor_cor, na.rm = TRUE))),
+            big.mark = ".",
+            decimal.mark = ","
+          )
+        )
+      ) %>%
+      layout(
+        geo = list(
+          scope = "usa",
+          projection = list(type = "albers usa"),
+          showlakes = TRUE,
+          lakecolor = toRGB("white")
+        )
+      )
+  })
 }
 
-#5. Rodar o aplicativo ---------------------------------------------------------------------------------------------------------------------------------------------------------
 shinyApp(ui, server)
 
