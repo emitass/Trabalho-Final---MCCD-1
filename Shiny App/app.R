@@ -33,6 +33,9 @@ dados_tratados <- dados_brutos %>%
     )
   )
 
+#lista dos estados para aba 2
+lista_estados <- sort(unique(dados_estados$state))
+
 # estados individuais (para o Mapa do país e/ou rankings estaduais)
 dados_estados <- dados_tratados %>%
   filter(nivel_geografico == "Estado")
@@ -181,36 +184,85 @@ ui <- dashboardPage(
       # 1. aba 1 - apresentação
       tabItem(
         tabName = "aba1",
-        h2("Título 1"),
+        h2("Introdução"),
         fluidRow(
           box(
             title = "Apresentação e Motivação",
             width = 12,
             status = "info", #cores das bordas e fundo dos cabeçalhos
             solidHeader = TRUE,
-            p("Apresentação do tema, motivação, objetivos do trabalho e descrição rápida do banco de dados.")
+            p("Por que ", em("honeybees"), "?"),
+            
+            p("As abelhas do gênero Apis, em particular a abelha-do-mel, destacam-se como os polinizadores domesticados mais comuns no mundo (IPBES,2016). Assim, tem um papel essencial na produção de alimentos e manutenção de ecossistemas: aproximadamente 35% da safra global depende de polinização, sendo que a diversidade e abundância de polinizadores contribui para o rendimento das safras.
+            Segundo especialistas da FAO (Nações Unidas), um terço da produção alimentícia mundial depende de abelhas."),
+            
+            p("Com este trabalho, o grupo pretende verificar variações na população de abelhas, quais são as principais ameaças às colônias de abelhas onde elas se situam com dados referentes aos Estados Unidos da América."),
+            
+            p("A base foi divulgada pelo USDA (Departamento de Agricultura). Acompanham colônias entre 2015 e 2022, apresentando dados sobre a quantidade de colônias, sua localização e os fatores de estresse."),
+            
           )
         )
       ),
       
-      # aba 2 - gráfico 1
+      #aba 2: gráficos de sazonalidade
       tabItem(
         tabName = "aba2",
-        h2("Título 2"),
+        h2("Evolução Sazonal das Colônias por Estado"),
         fluidRow(
           box(
-            title = "Barra de Filtros",
+            title = "Filtros",
             width = 12,
-            status = "info",
-            p("Inputs (selectInput, sliderInput, etc.) do gráfico 1.")
+            status = "warning",
+            solidHeader = TRUE,
+            fluidRow(
+              column(
+                width = 4,
+                selectInput(
+                  inputId = "estado_aba2",
+                  label = "Selecione o Estado:",
+                  choices = lista_estados,
+                  selected = "Washington"
+                )
+              ),
+              column(
+                width = 4,
+                sliderInput(
+                  inputId = "ano_aba2",
+                  label = "Selecione o Ano:",
+                  min = min(dados_estados$year),
+                  max = max(dados_estados$year),
+                  value = min(dados_estados$year), 
+                  step = 1,
+                  sep = "",
+                  animate = animationOptions(interval = 1200, loop = FALSE)
+                )
+              ),
+              column(
+                width = 4,
+                radioButtons(
+                  inputId = "taxa_aba2",
+                  label = "Selecione a Taxa:",
+                  choices = c(
+                    "Taxa de Perda (%)" = "percent_lost",
+                    "Taxa de Renovação (%)" = "percent_renovated"
+                  ),
+                  selected = "percent_lost",
+                )
+              )
+            ),
+            p(
+              class = "nota-metodologica",
+              "Alterne entre os estados, os anos e os tipos de taxa para observar a sazonalidade e a tendência temporal de perda ou renovação de colônias."
+            )
           )
         ),
         fluidRow(
           box(
-            title = "Nome do Gráfico 1",
+            title = "Ano por Trimestres",
             width = 12,
-            status = "info",
-            p("Gráfico 1.")
+            status = "warning",
+            solidHeader = TRUE,
+            plotlyOutput("grafico_linha_aba2", height = "480px")
           )
         )
       ),
@@ -446,7 +498,66 @@ server <- function(input, output) {
   
   # aba 1 (se necessário) - introdução
   
-  # aba 2
+  #aba 2: gráficos de sazonalidade
+  dados_aba2_filtrados <- reactive({
+    req(input$estado_aba2, input$ano_aba2)
+    
+    dados_estados %>%
+      filter(
+        state == input$estado_aba2,
+        year == as.numeric(input$ano_aba2)
+      ) %>%
+      mutate(
+        rotulo_periodo = factor(trimestre_rotulo)
+      ) %>%
+      arrange(quarter)
+  })
+  
+  output$grafico_linha_aba2 <- renderPlotly({
+    dados <- dados_aba2_filtrados()
+    
+    validate(
+      need(nrow(dados) > 0, "Não há dados para o estado e ano selecionados.")
+    )
+    
+    coluna_y <- input$taxa_aba2
+    is_perda <- coluna_y == "percent_lost"
+    
+    cor_linha <- if (is_perda) "#D95F02" else "#2B8CBE"
+    titulo_taxa <- if (is_perda) "Perda de Colônias" else "Renovação de Colônias"
+    
+    plot_ly(
+      data = dados,
+      x = ~rotulo_periodo,
+      y = ~.data[[coluna_y]],
+      type = "scatter",
+      mode = "lines+markers",
+      line = list(color = cor_linha, width = 3),
+      marker = list(color = cor_linha, size = 8),
+      text = ~paste0(
+        "<b>Estado:</b> ", state, " (", state_code, ")<br>",
+        "<b>Trimestre:</b> ", rotulo_periodo, "<br>",
+        "<b>Ano:</b> ", year, "<br>",
+        "<b>", titulo_taxa, ":</b> ", .data[[coluna_y]], "%"
+      ),
+      hoverinfo = "text"
+    ) %>%
+      layout(
+        title = list(text = paste0("<b>", titulo_taxa, " - ", input$estado_aba2, " (", input$ano_aba2, ")</b>")),
+        xaxis = list(
+          title = "Trimestre",
+          tickangle = 0
+        ),
+        yaxis = list(
+          title = paste0(titulo_taxa, " (%)"),
+          range = c(0, 100),
+          zeroline = TRUE
+        ),
+        margin = list(l = 50, r = 30, t = 60, b = 60),
+        hovermode = "x unified"
+      ) %>%
+      config(displayModeBar = TRUE, displaylogo = FALSE)
+  })
   
   #aba 3 - fatores de extresse
   # 3.1 Gráfico de barras horizontais
