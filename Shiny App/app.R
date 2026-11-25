@@ -3,10 +3,9 @@ library(shiny)
 library(shinydashboard)
 library(tidyverse)
 library(DT)
-
-#1.1 biblioteca para o mapa
 library(plotly)
 
+#2. Tratamento de Dados ----------------------------------------------------------------------------------------------------------------------------------------------------------
 caminho_dataset <- file.path("..", "Dataset", "save_the_bees.csv")
 dados_brutos <- read.csv(caminho_dataset)
 
@@ -120,7 +119,7 @@ ordem_fatores <- c(
   "Doenças"
 )
 
-
+#3. Layout ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ui <- dashboardPage(
   skin = "yellow", #cor de fundo do cabeçalho
   
@@ -178,6 +177,7 @@ ui <- dashboardPage(
     ),
     
     tabItems(
+      
       # 1. aba 1 - apresentação
       tabItem(
         tabName = "aba1",
@@ -297,43 +297,53 @@ ui <- dashboardPage(
         )
       ),
 
-      # ABA 4 MAPA
-      tabItem(
-        tabName = "aba4",
-        h2("Visualização de dados nos estados do Estados Unidos"),
-        fluidRow(
-          box(
-            title = "Mapa do numero de colônias por estado",
-            width = 20,
-            status = "info",
-            selectInput(
-              inputId = "ano_selecionado",
-              label = "Selecione o ano:",
-              choices = anos_disponiveis,
-              selected = anos_disponiveis[1],
-              width = 200
-            ),
-            mainPanel(
-              plotlyOutput("mapa_eua", width = "900px")
-            )
-            ),
-          box(
-            title = "Mapa da porcentagem de colônias perdidas por estado",
-            width = 20,
-            status = "info",
-            selectInput(
-              inputId = "ano_selecionado2",
-              label = "Selecione o ano:",
-              choices = anos_disponiveis,
-              selected = anos_disponiveis[1],
-              width = 200
-            ),
-            mainPanel(
-              plotlyOutput("mapa_eua2", width = "900px")
-            )
-          ),
-          ),
-      ),
+     # aba 4 - mapa
+     tabItem(
+       tabName = "aba4",
+       h2("Visualização de dados nos Estados Unidos"),
+       fluidRow(
+         box(
+           title = "Mapa do número de colônias por estado",
+           width = 12,
+           status = "info",
+           div(
+             style = "display: flex; justify-content: center; margin-bottom: 5px;",
+             selectInput(
+               inputId = "ano_selecionado",
+               label = "Selecione o ano:",
+               choices = anos_disponiveis,
+               selected = anos_disponiveis[1],
+               width = "220px"
+             )
+           ),
+           div(
+             style = "max-width: 920px; margin: 0 auto;",
+             plotlyOutput("mapa_eua", width = "100%", height = "460px")
+           )
+         )
+       ),
+       fluidRow(
+         box(
+           title = "Mapa da porcentagem de colônias perdidas por estado",
+           width = 12,
+           status = "info",
+           div(
+             style = "display: flex; justify-content: center; margin-bottom: 5px;",
+             selectInput(
+               inputId = "ano_selecionado2",
+               label = "Selecione o ano:",
+               choices = anos_disponiveis,
+               selected = anos_disponiveis[1],
+               width = "220px"
+             )
+           ),
+           div(
+             style = "max-width: 920px; margin: 0 auto;",
+             plotlyOutput("mapa_eua2", width = "100%", height = "460px")
+           )
+         )
+       )
+     ),
       
       # aba 5 - banco de dados (é bom pro usuário ter acesso direto a linhas específicas/número de observações filtradas)
       tabItem(
@@ -431,25 +441,32 @@ ui <- dashboardPage(
   )
 )
 
+#4. Gráficos e Tabelas -----------------------------------------------------------------------------------------------------------------------------------------------------------
 server <- function(input, output) {
-  # ABA 3 - Grafico de barras horizontais
+  
+  # aba 1 (se necessário) - introdução
+  
+  # aba 2
+  
+  #aba 3 - fatores de extresse
+  # 3.1 Gráfico de barras horizontais
   dados_barras <- reactive({
-
+    
     dados <- dados_fatores_estados
-
+    
     # Filtro de ano
     if (!is.null(input$ano_fatores) && input$ano_fatores != "Todos") {
       dados <- dados %>%
         filter(year == as.integer(input$ano_fatores))
     }
-
+    
     # Filtro de trimestre
     if (!is.null(input$trimestre_fatores) &&
         input$trimestre_fatores != "Todos") {
       dados <- dados %>%
         filter(as.character(trimestre_rotulo) == input$trimestre_fatores)
     }
-
+    
     # Media estadual do percentual para cada fator
     dados %>%
       group_by(fator_pt) %>%
@@ -467,15 +484,15 @@ server <- function(input, output) {
         )
       )
   })
-
+  
   output$grafico_barras_fatores <- renderPlotly({
-
+    
     dados <- dados_barras()
-
+    
     validate(
       need(nrow(dados) > 0, "Não há dados para os filtros selecionados.")
     )
-
+    
     grafico <- ggplot(
       dados,
       aes(
@@ -508,7 +525,7 @@ server <- function(input, output) {
         panel.grid.major.y = element_blank(),
         panel.grid.minor = element_blank()
       )
-
+    
     ggplotly(grafico, tooltip = "text") %>%
       layout(
         margin = list(l = 10, r = 35, t = 55, b = 55),
@@ -516,17 +533,18 @@ server <- function(input, output) {
       ) %>%
       config(displayModeBar = TRUE, displaylogo = FALSE)
   })
-# ABA 3 - Mapa de calor
+  
+  # 3.2 Mapa de calor
   dados_heatmap <- reactive({
-
+    
     dados <- dados_fatores_estados
-
+    
     if (!is.null(input$trimestre_heatmap) &&
         input$trimestre_heatmap != "Todos") {
       dados <- dados %>%
         filter(as.character(trimestre_rotulo) == input$trimestre_heatmap)
     }
-
+    
     dados %>%
       group_by(year, fator_pt) %>%
       summarise(
@@ -546,15 +564,15 @@ server <- function(input, output) {
         )
       )
   })
-
+  
   output$mapa_calor_fatores <- renderPlotly({
-
+    
     dados <- dados_heatmap()
-
+    
     validate(
       need(nrow(dados) > 0, "Não há dados para o filtro selecionado.")
     )
-
+    
     grafico <- ggplot(
       dados,
       aes(
@@ -584,36 +602,17 @@ server <- function(input, output) {
         axis.text.x = element_text(angle = 0, hjust = 0.5),
         legend.position = "right"
       )
-
+    
     ggplotly(grafico, tooltip = "text") %>%
       layout(
         margin = list(l = 15, r = 20, t = 55, b = 55)
       ) %>%
       config(displayModeBar = TRUE, displaylogo = FALSE)
   })
-
-  #aba 5 - tabela com o banco dde dados tratado
-  output$tabela_dados <- renderDT({
-    datatable(
-      dados_tabela,
-      rownames = FALSE, # esconde a coluna extra com a numeração das linhas
-      filter = "top",   # coloca uma caixinha de filtro em cima de cada coluna
-      options = list(
-        pageLength = 10, # exibe 10 linhas por página
-        scrollX = TRUE,  # ativa rolagem horizontal para caber todas as 18 colunas 
-        language = list(
-          search = "Pesquisar:",
-          lengthMenu = "Mostrar _MENU_ registros",
-          info = "Mostrando de _START_ até _END_ de _TOTAL_ registros",
-          infoFiltered = "(filtrado de _MAX_ registros no total)",
-          zeroRecords = "Nenhum registro encontrado",
-          paginate = list(previous = "Anterior", `next` = "Próximo")
-        )
-      )
-    )
-  })
   
-  # Grafico do mapa dos EUA
+  
+  # aba 4 - mapa dos EUA
+  # Paletas de cores
   cores_mel <- list(
     list(0.0, "#FFF7D6"),
     list(0.35, "#F7C948"),
@@ -629,6 +628,7 @@ server <- function(input, output) {
     list(1.0, "#a50f15")
   )
   
+  # 4.1 Mapa do número de colônias por estado
   dados_mapa_ano <- reactive({
     req(input$ano_selecionado)
     
@@ -640,21 +640,6 @@ server <- function(input, output) {
       group_by(Estado = state, Sigla = state_code) %>%
       summarise(
         colonias_iniciais = sum(num_colonies, na.rm = TRUE),
-        .groups = "drop"
-      )
-  })
-  
-  dados_mapa_ano2 <- reactive({
-    req(input$ano_selecionado)
-    
-    dados_tratados %>%
-      filter(
-        state != "Other",
-        year == as.numeric(input$ano_selecionado2)
-      ) %>%
-      group_by(Estado = state, Sigla = state_code) %>%
-      summarise(
-        colonias_perdidas = sum(percent_lost, na.rm = TRUE),
         .groups = "drop"
       )
   })
@@ -699,6 +684,22 @@ server <- function(input, output) {
       )
   })
   
+  # 4.2 Mapa da porcentagem de colônias perdidas por estado
+  dados_mapa_ano2 <- reactive({
+    req(input$ano_selecionado)
+    
+    dados_tratados %>%
+      filter(
+        state != "Other",
+        year == as.numeric(input$ano_selecionado2)
+      ) %>%
+      group_by(Estado = state, Sigla = state_code) %>%
+      summarise(
+        colonias_perdidas = sum(percent_lost, na.rm = TRUE),
+        .groups = "drop"
+      )
+  })
+  
   output$mapa_eua2 <- renderPlotly({
     dados_mapa <- dados_mapa_ano2()
     vals_legenda <- pretty(range(dados_mapa$colonias_perdidas, na.rm = TRUE))
@@ -731,13 +732,34 @@ server <- function(input, output) {
       )
   })
   
-  # ABA 6 - Conclusoes calculadas a partir dos dados
+  
+  # aba 5 - banco de dados tratado
+  output$tabela_dados <- renderDT({
+    datatable(
+      dados_tabela,
+      rownames = FALSE, # esconde a coluna extra com a numeração das linhas
+      filter = "top",   # coloca uma caixinha de filtro em cima de cada coluna
+      options = list(
+        pageLength = 10, # exibe 10 linhas por página
+        scrollX = TRUE,  # ativa rolagem horizontal para caber todas as 18 colunas 
+        language = list(
+          search = "Pesquisar:",
+          lengthMenu = "Mostrar _MENU_ registros",
+          info = "Mostrando de _START_ até _END_ de _TOTAL_ registros",
+          infoFiltered = "(filtrado de _MAX_ registros no total)",
+          zeroRecords = "Nenhum registro encontrado",
+          paginate = list(previous = "Anterior", `next` = "Próximo")
+        )
+      )
+    )
+  })
+  
+  
+  # aba 6 - conclusões
   
   output$texto_conclusoes <- renderUI({
-
+    
     # Evolucao nacional da taxa de perdas:
-    # razao entre a soma das perdas e a soma do maximo de colonias
-    # nos registros trimestrais de cada ano.
     resumo_nacional <- dados_eua %>%
       group_by(year) %>%
       summarise(
@@ -751,19 +773,19 @@ server <- function(input, output) {
         .groups = "drop"
       ) %>%
       arrange(year)
-
+    
     taxa_inicio <- resumo_nacional %>%
       filter(year == min(year)) %>%
       pull(taxa_perda)
-
+    
     taxa_fim <- resumo_nacional %>%
       filter(year == max(year)) %>%
       pull(taxa_perda)
-
+    
     ano_inicio <- min(resumo_nacional$year, na.rm = TRUE)
     ano_fim <- max(resumo_nacional$year, na.rm = TRUE)
     diferenca_taxa <- taxa_fim - taxa_inicio
-
+    
     # Fatores de estresse: media estadual ao longo de todos os anos/trimestres
     resumo_fatores <- dados_fatores_estados %>%
       group_by(fator_pt) %>%
@@ -772,10 +794,10 @@ server <- function(input, output) {
         .groups = "drop"
       ) %>%
       arrange(desc(media))
-
+    
     principal_fator <- resumo_fatores$fator_pt[1]
     media_principal_fator <- resumo_fatores$media[1]
-
+    
     # Estados: maior soma registrada de perdas e maior taxa agregada
     resumo_estados <- dados_estados %>%
       group_by(state) %>%
@@ -789,18 +811,18 @@ server <- function(input, output) {
         ),
         .groups = "drop"
       )
-
+    
     estado_maior_perda <- resumo_estados %>%
       slice_max(perdas_registradas, n = 1, with_ties = FALSE)
-
+    
     estado_maior_taxa <- resumo_estados %>%
       slice_max(taxa_agregada, n = 1, with_ties = FALSE)
-
+    
     # Formatacao dos valores para exibicao
     fmt_numero <- function(x) {
       format(round(x), big.mark = ".", decimal.mark = ",", scientific = FALSE)
     }
-
+    
     fmt_percentual <- function(x) {
       paste0(
         format(round(x, 2), nsmall = 2,
@@ -808,7 +830,7 @@ server <- function(input, output) {
         "%"
       )
     }
-
+    
     tagList(
       div(
         class = "conclusao-card",
@@ -839,7 +861,7 @@ server <- function(input, output) {
           "é importante observar as oscilações entre os anos e os trimestres."
         )
       ),
-
+      
       div(
         class = "conclusao-card",
         h4("2. Quais fatores de estresse mais se destacam?"),
@@ -856,7 +878,7 @@ server <- function(input, output) {
           "que um fator causou determinada perda."
         )
       ),
-
+      
       div(
         class = "conclusao-card",
         h4("3. Onde se concentram as perdas?"),
@@ -877,7 +899,7 @@ server <- function(input, output) {
           "mais perdas em números absolutos sem apresentar a maior taxa."
         )
       ),
-
+      
       p(
         class = "nota-metodologica",
         "Nota: os indicadores estaduais e nacionais foram calculados a partir ",
@@ -889,6 +911,4 @@ server <- function(input, output) {
     )
   })
 }
-
 shinyApp(ui, server)
-
