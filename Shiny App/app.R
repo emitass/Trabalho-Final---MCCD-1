@@ -300,9 +300,10 @@ ui <- dashboardPage(
       # ABA 4 MAPA
       tabItem(
         tabName = "aba4",
-        h2("Mapa do numero de colonias por estado"),
+        h2("Visualização de dados nos estados do Estados Unidos"),
         fluidRow(
           box(
+            title = "Mapa do numero de colônias por estado",
             width = 20,
             status = "info",
             selectInput(
@@ -316,6 +317,21 @@ ui <- dashboardPage(
               plotlyOutput("mapa_eua", width = "900px")
             )
             ),
+          box(
+            title = "Mapa da porcentagem de colônias perdidas por estado",
+            width = 20,
+            status = "info",
+            selectInput(
+              inputId = "ano_selecionado2",
+              label = "Selecione o ano:",
+              choices = anos_disponiveis,
+              selected = anos_disponiveis[1],
+              width = 200
+            ),
+            mainPanel(
+              plotlyOutput("mapa_eua2", width = "900px")
+            )
+          ),
           ),
       ),
       
@@ -605,6 +621,14 @@ server <- function(input, output) {
     list(1.0, "#6E3500")
   )
   
+  cores_vermelho <- list(
+    list(0.0, "#fee5d9"),
+    list(0.25, "#fcae91"),
+    list(0.5, "#fb6a4a"),
+    list(0.75, "#de2d26"),
+    list(1.0, "#a50f15")
+  )
+  
   dados_mapa_ano <- reactive({
     req(input$ano_selecionado)
     
@@ -616,6 +640,21 @@ server <- function(input, output) {
       group_by(Estado = state, Sigla = state_code) %>%
       summarise(
         colonias_iniciais = sum(num_colonies, na.rm = TRUE),
+        .groups = "drop"
+      )
+  })
+  
+  dados_mapa_ano2 <- reactive({
+    req(input$ano_selecionado)
+    
+    dados_tratados %>%
+      filter(
+        state != "Other",
+        year == as.numeric(input$ano_selecionado2)
+      ) %>%
+      group_by(Estado = state, Sigla = state_code) %>%
+      summarise(
+        colonias_perdidas = sum(percent_lost, na.rm = TRUE),
         .groups = "drop"
       )
   })
@@ -659,6 +698,39 @@ server <- function(input, output) {
         )
       )
   })
+  
+  output$mapa_eua2 <- renderPlotly({
+    dados_mapa <- dados_mapa_ano2()
+    vals_legenda <- pretty(range(dados_mapa$colonias_perdidas, na.rm = TRUE))
+    
+    plot_geo(locationmode = "USA-states") %>%
+      add_trace(
+        data = dados_mapa,
+        z = ~colonias_perdidas,
+        locations = ~Sigla,
+        text = ~paste0(
+          Estado, " (", Sigla, ")",
+          "<br>Ano: ", input$ano_selecionado2,
+          "<br>Colônias Perdidas: ", format(colonias_perdidas, big.mark = ".", decimal.mark = ","), "%"
+        ),
+        hoverinfo = "text",
+        colorscale = cores_vermelho,
+        showscale = TRUE,
+        colorbar = list(
+          title = "Colônias perdidas em %<br>",
+          ticktext = paste0(format(vals_legenda, big.mark = ".", decimal.mark = ","), "%")
+        )
+      ) %>%
+      layout(
+        geo = list(
+          scope = "usa",
+          projection = list(type = "albers usa"),
+          showlakes = TRUE,
+          lakecolor = toRGB("white")
+        )
+      )
+  })
+  
   # ABA 6 - Conclusoes calculadas a partir dos dados
   
   output$texto_conclusoes <- renderUI({
