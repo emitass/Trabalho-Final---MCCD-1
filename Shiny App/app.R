@@ -149,7 +149,7 @@ ui <- dashboardPage(
     # menu de navegação
     sidebarMenu(
       menuItem("Introdução", tabName = "aba1", icon = icon("info-circle")),
-      menuItem("Gráfico 1", tabName = "aba2", icon = icon("chart-bar")), # alterar os nomes depois
+      menuItem("Sazonalidade", tabName = "aba2", icon = icon("chart-bar")), # alterar os nomes depois
       menuItem("Fatores de Estresse", tabName = "aba3", icon = icon("chart-line")),
       menuItem("Mapa", tabName = "aba4", icon = icon("map-marker-alt")),
       menuItem("Banco de Dados Tratado", tabName = "aba5", icon = icon("table")),
@@ -221,7 +221,7 @@ ui <- dashboardPage(
                   inputId = "estado_aba2",
                   label = "Selecione o Estado:",
                   choices = lista_estados,
-                  selected = "Washington"
+                  selected = "Maine"
                 )
               ),
               column(
