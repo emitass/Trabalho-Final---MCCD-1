@@ -206,11 +206,25 @@ ui <- dashboardPage(
             width = 12,
             status = "info",
             solidHeader = TRUE,
-            p("70% do alimento que comemos é polinizado pelas abelhas. Uma colmeia produz 100kg de mel por ano."),
-            img(
-              src = "images/bee1.jpeg", 
-              width = "600px",
-            ),
+            div(
+              style = "text-align: center;",
+              p("Cerca de 70 entre os 100 alimentos mais produzidos são polinizados pelas abelhas."),
+              img(
+                src = "images/bee1.jpeg",
+                width = "900px",
+                style = "max-width: 100%; height: auto; margin-top: 10px;"
+              ),
+              p(
+                style = "margin-top: 8px; font-size: 13px; color: #555;",
+                "(Fonte: ",
+                a(
+                  href = "https://www.bbc.co.uk/teach/articles/zkf292p",
+                  "BBC",
+                  target = "_blank"
+                ),
+                ")"
+              )
+            )
           )
         )
       ),
