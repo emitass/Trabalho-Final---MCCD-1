@@ -33,12 +33,12 @@ dados_tratados <- dados_brutos %>%
     )
   )
 
-#lista dos estados para aba 2
-lista_estados <- sort(unique(dados_estados$state))
-
 # estados individuais (para o Mapa do país e/ou rankings estaduais)
 dados_estados <- dados_tratados %>%
   filter(nivel_geografico == "Estado")
+
+#lista dos estados para aba 2
+lista_estados <- sort(unique(dados_estados$state))
 
 # agregado nacional dos EUA (para evolução histórica geral)
 dados_eua <- dados_tratados %>%
@@ -210,7 +210,7 @@ ui <- dashboardPage(
         h2("Evolução Sazonal das Colônias por Estado"),
         fluidRow(
           box(
-            title = "Filtros",
+            title = "Ano por Trimestres",
             width = 12,
             status = "warning",
             solidHeader = TRUE,
@@ -253,15 +253,7 @@ ui <- dashboardPage(
             p(
               class = "nota-metodologica",
               "Alterne entre os estados, os anos e os tipos de taxa para observar a sazonalidade e a tendência temporal de perda ou renovação de colônias."
-            )
-          )
-        ),
-        fluidRow(
-          box(
-            title = "Ano por Trimestres",
-            width = 12,
-            status = "warning",
-            solidHeader = TRUE,
+            ),
             plotlyOutput("grafico_linha_aba2", height = "480px")
           )
         )
@@ -274,7 +266,7 @@ ui <- dashboardPage(
 
         fluidRow(
           box(
-            title = "Filtros do gráfico de barras",
+            title = "Percentual médio por fator de estresse",
             width = 12,
             status = "warning",
             solidHeader = TRUE,
@@ -303,23 +295,14 @@ ui <- dashboardPage(
               "O gráfico apresenta a média do percentual informado pelos estados ",
               "para cada fator. A opção 'Todos' considera todos os anos e/ou ",
               "trimestres disponíveis."
-            )
-          )
-        ),
-
-        fluidRow(
-          box(
-            title = "Percentual médio por fator de estresse",
-            width = 12,
-            status = "warning",
-            solidHeader = TRUE,
+            ),
             plotlyOutput("grafico_barras_fatores", height = "430px")
           )
         ),
 
         fluidRow(
           box(
-            title = "Filtro do mapa de calor",
+            title = "Evolução dos fatores de estresse (2015–2022)",
             width = 12,
             status = "warning",
             solidHeader = TRUE,
@@ -334,16 +317,7 @@ ui <- dashboardPage(
               "O mapa de calor compara, ao longo dos anos, a média estadual ",
               "de cada fator. Passe o mouse sobre uma célula para consultar ",
               "o percentual correspondente."
-            )
-          )
-        ),
-
-        fluidRow(
-          box(
-            title = "Evolução dos fatores de estresse (2015–2022)",
-            width = 12,
-            status = "warning",
-            solidHeader = TRUE,
+            ),
             plotlyOutput("mapa_calor_fatores", height = "470px")
           )
         )
@@ -739,6 +713,12 @@ server <- function(input, output) {
     list(1.0, "#a50f15")
   )
   
+  estados_eua <- data.frame(
+    Sigla = state.abb,
+    Estado_base = state.name,
+    stringsAsFactors = FALSE
+  )
+  
   # 4.1 Mapa do número de colônias por estado
   dados_mapa_ano <- reactive({
     req(input$ano_selecionado)
@@ -761,9 +741,21 @@ server <- function(input, output) {
         valor_cor = ifelse(colonias_iniciais > 0, log10(colonias_iniciais), NA_real_)
       )
     
-    plot_geo(locationmode = "USA-states") %>%
+    dados_completo <- merge(estados_eua, dados_mapa, by = "Sigla", all.x = TRUE)
+    
+    # Usa o nome do dado se existir, ou o nome base do estado caso esteja ausente
+    dados_completo$Estado_exibir <- ifelse(
+      is.na(dados_completo$Estado) | dados_completo$Estado == "",
+      dados_completo$Estado_base,
+      dados_completo$Estado
+    )
+    
+    dados_validos <- dados_completo[!is.na(dados_completo$colonias_iniciais), ]
+    dados_sem_dado <- dados_completo[is.na(dados_completo$colonias_iniciais), ]
+    
+    p <- plot_geo(locationmode = "USA-states") %>%
       add_trace(
-        data = dados_mapa,
+        data = dados_validos,
         z = ~valor_cor,
         locations = ~Sigla,
         text = ~paste0(
@@ -784,7 +776,26 @@ server <- function(input, output) {
             decimal.mark = ","
           )
         )
-      ) %>%
+      )
+    if (nrow(dados_sem_dado) > 0) {
+      p <- p %>%
+        add_trace(
+          type = "choropleth",
+          data = dados_sem_dado,
+          z = rep(1, nrow(dados_sem_dado)),
+          locations = ~Sigla,
+          text = ~paste0(
+            Estado_exibir, " (", Sigla, ")",
+            "<br>Ano: ", input$ano_selecionado,
+            "<br>Sem dados"
+          ),
+          hoverinfo = "text",
+          colorscale = list(list(0, "gray"), list(1, "gray")),
+          showscale = FALSE
+        )
+    }
+    
+    p %>%
       layout(
         geo = list(
           scope = "usa",
@@ -813,11 +824,23 @@ server <- function(input, output) {
   
   output$mapa_eua2 <- renderPlotly({
     dados_mapa <- dados_mapa_ano2()
-    vals_legenda <- pretty(range(dados_mapa$colonias_perdidas, na.rm = TRUE))
+
+    dados_completo <- merge(estados_eua, dados_mapa, by = "Sigla", all.x = TRUE)
     
-    plot_geo(locationmode = "USA-states") %>%
+    dados_completo$Estado_exibir <- ifelse(
+      is.na(dados_completo$Estado) | dados_completo$Estado == "",
+      dados_completo$Estado_base,
+      dados_completo$Estado
+    )
+    
+    dados_validos <- dados_completo[!is.na(dados_completo$colonias_perdidas), ]
+    dados_sem_dado <- dados_completo[is.na(dados_completo$colonias_perdidas), ]
+    
+    vals_legenda <- pretty(range(dados_validos$colonias_perdidas, na.rm = TRUE))
+    
+    p <- plot_geo(locationmode = "USA-states") %>%
       add_trace(
-        data = dados_mapa,
+        data = dados_validos,
         z = ~colonias_perdidas,
         locations = ~Sigla,
         text = ~paste0(
@@ -832,7 +855,26 @@ server <- function(input, output) {
           title = "Colônias perdidas em %<br>",
           ticktext = paste0(format(vals_legenda, big.mark = ".", decimal.mark = ","), "%")
         )
-      ) %>%
+      )
+    if (nrow(dados_sem_dado) > 0) {
+      p <- p %>%
+        add_trace(
+          type = "choropleth",
+          data = dados_sem_dado,
+          z = rep(1, nrow(dados_sem_dado)),
+          locations = ~Sigla,
+          text = ~paste0(
+            Estado_exibir, " (", Sigla, ")",
+            "<br>Ano: ", input$ano_selecionado,
+            "<br>Sem dados"
+          ),
+          hoverinfo = "text",
+          colorscale = list(list(0, "gray"), list(1, "gray")),
+          showscale = FALSE
+        )
+    }
+    
+    p %>%
       layout(
         geo = list(
           scope = "usa",
