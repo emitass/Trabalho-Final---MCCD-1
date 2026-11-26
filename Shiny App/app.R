@@ -200,6 +200,17 @@ ui <- dashboardPage(
             
             p("A base foi divulgada pelo USDA (Departamento de Agricultura). Acompanham colônias entre 2015 e 2022, apresentando dados sobre a quantidade de colônias, sua localização e os fatores de estresse."),
             
+          ),
+          box(
+            title = "Como as abelhas nos ajudam",
+            width = 12,
+            status = "info",
+            solidHeader = TRUE,
+            p("70% do alimento que comemos é polinizado pelas abelhas. Uma colmeia produz 100kg de mel por ano."),
+            img(
+              src = "images/bee1.jpeg", 
+              width = "600px",
+            ),
           )
         )
       ),
